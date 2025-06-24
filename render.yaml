@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: stake-mines-predictor-bot
+    env: python
+    buildCommand: ""
+    startCommand: "python bot.py"
+    envVars:
+      - key: TELEGRAM_TOKEN
+        value: your_real_bot_token
