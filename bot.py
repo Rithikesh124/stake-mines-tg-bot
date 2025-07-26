@@ -5,7 +5,7 @@ import random
 import io
 import httpx
 import uuid
-import os
+import os  # <-- CRITICAL for deployment
 import asyncio
 from datetime import datetime, timedelta
 
@@ -35,8 +35,8 @@ from telegram.constants import ParseMode
 from telegram.error import Forbidden, BadRequest
 
 # --- Configuration ---
-# Direct Bot Token for local/private use
-BOT_TOKEN = "7857552768:AAFAveQgiTVtbemAr9X5rf6tv1FEOBpzkAc"
+# CRITICAL FOR DEPLOYMENT: Gets the token from a secure environment variable.
+BOT_TOKEN = os.environ.get("BOT_TOKEN") 
 DEV_USERNAME = "@DEVELOPERSTAKEBOT"
 ADMIN_ACTIVATION_KEY = "SUPER-ADMIN-2024"
 
@@ -191,8 +191,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = [[InlineKeyboardButton("Click Here To Start 🚀", callback_data="start_prediction_flow")]]
     await update.message.reply_text("Start STAKE MINES Predictor 💣", reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def start_prediction_flow_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """This is the single, robust entry point for the entire user flow."""
+async def choose_mines_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query; await query.answer()
     await query.message.delete()
     buttons = [InlineKeyboardButton(str(i), callback_data=f"mine_{i}") for i in range(3, 25)];
@@ -207,23 +206,26 @@ async def get_mine_count(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     return AWAIT_SERVER_SEED
 
 async def get_server_seed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=update.message.message_id - 1)
+    try: await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=update.message.message_id - 1)
+    except BadRequest: pass
     await update.message.delete()
     context.user_data['server_seed'] = update.message.text; context.user_data['client_seed'] = "0" * 64
     await send_guide_photo(update, context, BET_AMOUNT_GUIDE_URL, "Great! Now get the <b>Bet Amount</b> and paste it below:")
     return AWAIT_BET_AMOUNT
 
 async def get_bet_amount_and_check_activation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=update.message.message_id - 1)
+    try: await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=update.message.message_id - 1)
+    except BadRequest: pass
     await update.message.delete()
-    context.user_data['bet_amount'] = update.message.text
+    context.user_data['bet_amount'] = update.message.text;
     if is_user_premium(update.effective_user.id, context):
         await run_prediction_logic(update, context); return ConversationHandler.END
     else:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="❗<b>Activation Required</b>\nYour key is invalid or has expired. Please enter a key:", parse_mode=ParseMode.HTML); return AWAIT_ACTIVATION_KEY
 
 async def process_activation_key(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=update.message.message_id - 1)
+    try: await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=update.message.message_id - 1)
+    except BadRequest: pass
     await update.message.delete()
     user, key = update.effective_user, update.message.text.strip().upper(); activation_keys = context.bot_data.setdefault('activation_keys', {}); user_activation_info = context.bot_data.setdefault('user_activation_info', {}); admin_users = context.bot_data.setdefault('admin_users', set())
     if key == ADMIN_ACTIVATION_KEY:
@@ -252,17 +254,21 @@ async def run_prediction_logic(update: Update, context: ContextTypes.DEFAULT_TYP
 async def cancel_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
     if update.callback_query: await update.callback_query.message.delete()
-    await update.message.reply_text("<b>Action Cancelled.</b>", parse_mode=ParseMode.HTML)
+    await context.bot.send_message(chat_id=update.effective_chat.id, text="<b>Action Cancelled.</b>", parse_mode=ParseMode.HTML)
     await start(update, context); return ConversationHandler.END
 
 # ==============================================================================
 # 4. Main Bot Setup
 # ==============================================================================
 def main() -> None:
-    if not BOT_TOKEN: logger.critical("FATAL: BOT_TOKEN not set."); return
+    if not BOT_TOKEN:
+        logger.critical("FATAL: BOT_TOKEN environment variable not set. Aborting.")
+        return
+
     data_path = "/data/bot_data.pickle" if os.path.isdir("/data") else "bot_data.pickle"
     logger.info(f"Using persistence file at: {data_path}")
     persistence = PicklePersistence(filepath=data_path)
+    
     application = Application.builder().token(BOT_TOKEN).persistence(persistence).build()
     
     if 'activation_keys' not in application.bot_data or not application.bot_data['activation_keys']:
@@ -272,7 +278,7 @@ def main() -> None:
 
     # Unified User Conversation Handler
     user_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(start_prediction_flow_handler, pattern="^start_prediction_flow$")],
+        entry_points=[CallbackQueryHandler(choose_mines_handler, pattern="^start_prediction_flow$")],
         states={
             CHOOSE_MINES: [CallbackQueryHandler(get_mine_count, pattern="^mine_")],
             AWAIT_SERVER_SEED: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_server_seed)],
