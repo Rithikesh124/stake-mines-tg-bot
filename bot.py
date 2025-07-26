@@ -5,7 +5,7 @@ import random
 import io
 import httpx
 import uuid
-import os  # <-- CRITICAL for deployment
+import os
 import asyncio
 from datetime import datetime, timedelta
 
@@ -35,15 +35,16 @@ from telegram.constants import ParseMode
 from telegram.error import Forbidden, BadRequest
 
 # --- Configuration ---
-# CRITICAL FOR DEPLOYMENT: Gets the token from a secure environment variable.
-BOT_TOKEN = os.environ.get("BOT_TOKEN") 
+BOT_TOKEN = "7857552768:AAFAveQgiTVtbemAr9X5rf6tv1FEOBpzkAc"
 DEV_USERNAME = "@DEVELOPERSTAKEBOT"
 ADMIN_ACTIVATION_KEY = "SUPER-ADMIN-2024"
 
+# Final, correct image URLs
 SINGLE_CELL_URL = "https://i.postimg.cc/dtVfWTSd/Screenshot-20250716-163347-Chrome.jpg"
-DIAMOND_IMAGE_URL = "https://i.postimg.cc/MKnC6Qbw/Screenshot-20250713-204556-Lemur-Browser-removebg-preview-removebg-preview.jpg"
-SERVER_SEED_GUIDE_URL = "https://i.postimg.cc/Dw9bzHWg/Screenshot-20250716-164325-Chrome.jpg"
-BET_AMOUNT_GUIDE_URL = "https://i.postimg.cc/brmtNvbD/Screenshot-20250716-164700-Chrome.jpg"
+DIAMOND_IMAGE_URL = "https://i.postimg.cc/TYpt961H/Screenshot-20250713-204556-Lemur-Browser-removebg-preview-removebg-preview.jpg"
+SERVER_SEED_GUIDE_URL = "https://i.postimg.cc/LsMv2gTr/Screenshot-20250716-164325-Chrome.jpg"
+BET_AMOUNT_GUIDE_URL = "https://i.postimg.cc/qvKQPx8s/Screenshot-20250716-164700-Chrome.jpg"
+
 
 INITIAL_TIMED_KEYS = { "ALPHA-1122": 30, "BETA-3344": 30, "GAMMA-5566": 7, "DELTA-7788": 7, "EPSILON-9900": 1, "ZETA-2244": 1, "THETA-6688": 365, "IOTA-1357": 365 }
 
@@ -192,6 +193,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("Start STAKE MINES Predictor 💣", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def choose_mines_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """This is the single, robust entry point for the entire user flow."""
     query = update.callback_query; await query.answer()
     await query.message.delete()
     buttons = [InlineKeyboardButton(str(i), callback_data=f"mine_{i}") for i in range(3, 25)];
@@ -261,14 +263,9 @@ async def cancel_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE
 # 4. Main Bot Setup
 # ==============================================================================
 def main() -> None:
-    if not BOT_TOKEN:
-        logger.critical("FATAL: BOT_TOKEN environment variable not set. Aborting.")
-        return
-
-    data_path = "/data/bot_data.pickle" if os.path.isdir("/data") else "bot_data.pickle"
+    data_path = "bot_data.pickle"
     logger.info(f"Using persistence file at: {data_path}")
     persistence = PicklePersistence(filepath=data_path)
-    
     application = Application.builder().token(BOT_TOKEN).persistence(persistence).build()
     
     if 'activation_keys' not in application.bot_data or not application.bot_data['activation_keys']:
